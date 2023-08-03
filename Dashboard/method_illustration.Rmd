@@ -1,0 +1,172 @@
+---
+title: "Shiny Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+
+# source functions
+files.sources = paste0(".././R/", list.files(".././R"))
+sapply(files.sources, source)
+library(plotly)
+
+set.seed(500)
+simlist = simulate_data(50, 0.003, 1:100/100)
+
+```
+
+Sidebar {.sidebar}
+=====================================
+
+```{r}
+
+# input selections
+numericInput("yin1", "Input Hormone 1 Level", 0.5)
+
+numericInput("yin2", "Input Hormone 2 Level", 0.5)
+
+```
+
+Method Illustration
+=======================================================================
+
+Column
+-----------------------------------------------------------------------
+
+### Hormone 1 Levels
+
+```{r}
+renderPlotly({
+  
+  simlist$simdat %>%
+    filter(hormone == "hormone1") %>%
+    ggplot() + 
+    geom_line(aes(x = argvals, y = y, group = subj), color = "grey", alpha = 0.6, linewidth = 0.2) +
+    geom_hline(aes(yintercept = input$yin1), linetype = "dashed", alpha = 0.9,color = "red", linewidth = 0.3) +
+    scale_x_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1), 
+                       labels = c(0, 7, 14, 21, 28)) +
+    theme_bw() + 
+    theme(text = element_text(size = 8)) +
+    labs(x = "Cycle Day", y = "Hormone Level")
+  
+})
+```
+
+### Hormone 2 Levels
+
+```{r}
+renderPlotly({
+  
+  simlist$simdat %>%
+    filter(hormone == "hormone2") %>%
+    ggplot() + 
+    geom_line(aes(x = argvals, y = y, group = subj), color = "grey", alpha = 0.6, linewidth = 0.2) +
+    geom_hline(aes(yintercept = input$yin2), linetype = "dashed", alpha = 0.9,color = "red", linewidth = 0.3) +
+    scale_x_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1), 
+                       labels = c(0, 7, 14, 21, 28)) +
+    theme_bw() + 
+    theme(text = element_text(size = 8)) +
+    labs(x = "Cycle Day", y = "Hormone Level")
+  
+})
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Hormone 1 Likelihood
+
+```{r}
+renderPlotly({
+  
+  sim_fpca_list = list(); l = 1
+  sim_fpca_list[[1]] = list(argvals = simlist$argvals, mu = simlist$mu[,l],
+                       eigenfunctions = matrix(simlist$eigenfunctions[,l], ncol = 1), 
+                       scores = matrix(simlist$scores[,l], ncol = 1), 
+                       sigma2 = simlist$sigma2, eigenvalues = simlist$eigenvalues[l], npc = 1)
+  names(sim_fpca_list) = "hormone1"
+  
+  lik = loglik(input$yin1, "hormone1", sim_fpca_list, 0.9)
+  
+  lik$ll %>%
+    ggplot() + 
+    geom_line(aes(x = thetatilde, y = exp(ll)), linewidth = 0.3) + 
+    geom_vline(aes(xintercept = lik$thetahat), linetype = "dashed",color = "red", alpha = 0.9, linewidth = 0.3) +
+    scale_x_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1, lik$thetahat), 
+                       labels = c(0, 7, 14, 21, 28, lik$thetahat*28)) +
+    theme_bw() +
+    theme(text = element_text(size = 8)) +
+    labs(x = "Cycle Day", y = "Likelihood")
+    
+
+})
+```
+
+
+
+### Hormone 2 Likelihood
+
+```{r}
+renderPlotly({
+  
+  sim_fpca_list = list(); l = 2
+  sim_fpca_list[[1]] = list(argvals = simlist$argvals, mu = simlist$mu[,l],
+                       eigenfunctions = matrix(simlist$eigenfunctions[,l], ncol = 1), 
+                       scores = matrix(simlist$scores[,l], ncol = 1), 
+                       sigma2 = simlist$sigma2, eigenvalues = simlist$eigenvalues[l], npc = 1)
+  names(sim_fpca_list) = "hormone2"
+  
+  lik = loglik(input$yin2, "hormone2", sim_fpca_list, 0.9)
+  
+  lik$ll %>%
+    ggplot() + 
+    geom_line(aes(x = thetatilde, y = exp(ll)), linewidth = 0.3) + 
+    geom_vline(aes(xintercept = lik$thetahat), linetype = "dashed", color = "red",  alpha = 0.9, linewidth = 0.3) +
+     scale_x_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1, lik$thetahat), 
+                       labels = c(0, 7, 14, 21, 28, lik$thetahat*28)) +
+    theme_bw() +
+    theme(text = element_text(size = 8)) +
+    labs(x = "Cycle Day", y = "Likelihood")
+    
+
+})
+```
+
+
+Column
+-----------------------------------------------------------------------
+
+### Multivariate Likelihood
+
+```{r}
+renderPlotly({
+  
+  sim_fpca_list = list()
+  for(l in 1:2) {
+    sim_fpca_list[[l]] = list(argvals = simlist$argvals, mu = simlist$mu[,l],
+                         eigenfunctions = matrix(simlist$eigenfunctions[,l], ncol = 1), 
+                         scores = matrix(simlist$scores[,l], ncol = 1), 
+                         sigma2 = simlist$sigma2, eigenvalues = simlist$eigenvalues[l], npc = 1)
+  }
+  names(sim_fpca_list) = c("hormone1", "hormone2")
+  
+  lik = loglik(c(input$yin1, input$yin2), c("hormone1", "hormone2"), sim_fpca_list, 0.9)
+  
+  lik$ll %>%
+    ggplot() + 
+    geom_line(aes(x = thetatilde, y = ll), linewidth = 0.3) + 
+    geom_vline(aes(xintercept = lik$thetahat), linetype = "dashed", color = "red", alpha = 0.9, linewidth = 0.3) +
+     scale_x_continuous(breaks = c(0, 0.25, 0.5, 0.75, 1, lik$thetahat), 
+                       labels = c(0, 7, 14, 21, 28, lik$thetahat*28)) +
+    theme_bw() +
+    theme(text = element_text(size = 8)) +
+    labs(x = "Cycle Day", y = "Log-likelihood")
+  
+})
+
+```
+
